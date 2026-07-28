@@ -1,6 +1,6 @@
 # physics-lint-mcp
 
-![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-25%20passing-brightgreen)
+![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-27%20passing-brightgreen)
 
 **A physics oracle your AI agent cannot talk its way past.**
 

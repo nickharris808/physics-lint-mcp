@@ -251,3 +251,40 @@ def test_readme_smoke_test_lists_exactly_the_shipped_tools():
     assert documented == list(TOOLS), (
         f"README lists {documented}; server serves {list(TOOLS)}"
     )
+
+
+# ------------------------------------------- every shipped install must work
+
+_REPO = Path(__file__).resolve().parents[1]
+
+
+def test_no_install_command_points_at_a_path_a_stranger_will_not_have():
+    """READMEs get copy-pasted, so a local path in one is a broken command.
+
+    `pip install ./sparam-lint` works in the development tree and fails for
+    everyone else with "File './sparam-lint' does not exist". Every install
+    line here has to resolve for someone who cloned only this repository.
+    """
+    readme = (_REPO / "README.md").read_text(encoding="utf-8")
+    offenders = []
+    for i, line in enumerate(readme.splitlines(), 1):
+        if "pip install" not in line:
+            continue
+        for tok in line.split():
+            tok = tok.strip("`\"',")
+            if tok.startswith(("./", "../")) and not (_REPO / tok).exists():
+                offenders.append("line %d: %s" % (i, tok))
+    assert not offenders, (
+        "install commands reference paths absent from a fresh clone: "
+        + "; ".join(offenders)
+    )
+
+
+def test_pypi_install_lines_are_labelled_as_not_yet_available():
+    """The package name 404s on PyPI today. Saying so is the whole fix."""
+    readme = (_REPO / "README.md").read_text(encoding="utf-8")
+    if "pip install physics-lint-mcp" in readme:
+        assert "Not yet on PyPI" in readme, (
+            "README shows `pip install physics-lint-mcp` without saying the name "
+            "is not published yet"
+        )
