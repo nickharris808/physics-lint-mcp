@@ -1,6 +1,6 @@
 # physics-lint-mcp
 
-![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-27%20passing-brightgreen)
+![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-28%20passing-brightgreen)
 
 **A physics oracle your AI agent cannot talk its way past.**
 
@@ -60,12 +60,76 @@ A ready-made [`mcp.json`](mcp.json) ships with the package.
 
 ## Tools
 
-| Tool | What it answers |
-|---|---|
-| `check_touchstone` | Is this `.sNp` file a physically possible passive network? |
-| `check_screening` | Does this coupling matrix violate the many-body screening ceiling? |
-| `pairwise_error` | How wrong is a pairwise extractor at this screening factor? |
-| `self_test` | Does the checker still discriminate? |
+| Tool | Arguments | What it answers |
+|---|---|---|
+| `check_touchstone` | `path` *(string, required)* | Is this `.sNp` file a physically possible passive network? |
+| `check_screening` | `c_full` *(array, required)*, `c_iso` *(array, required)* — both N×N | Does this coupling matrix violate the many-body screening ceiling? |
+| `pairwise_error` | `screening_factor` *(number, required)*, `k` in (0, 1] | How wrong is a pairwise extractor at this screening factor? |
+| `self_test` | none | Does the checker still discriminate? |
+
+The schemas the server advertises over `tools/list` are the authoritative
+version of that table, and a test asserts the two agree.
+
+## A worked example: an agent that cannot fool itself
+
+The failure this prevents is specific. An agent is handed a vendor `.s2p`, is
+asked whether the link will close, and reasons fluently about numbers that
+describe a network which cannot exist. Nothing in the loop objects, because an
+LLM has no way to tell an impossible S-matrix from a plausible one.
+
+Wire the server in, and the first thing worth doing in a session is asking the
+checker to prove itself:
+
+> **You:** Before we look at the model, run `self_test`.
+>
+> **Agent:** *(calls `self_test`)* The battery discriminates — five networks
+> built to violate one law each were all rejected.
+
+Now the model:
+
+> **You:** Check `vendor/lna_stage.s2p`.
+>
+> **Agent:** *(calls `check_touchstone` with `path="vendor/lna_stage.s2p"`)*
+> This network is not physically realizable as a passive device: it fails
+> passivity and energy conservation. I will not reason from its values.
+
+That last sentence is not the agent being careful — it is the `interpretation`
+field coming back in the result, written for a model to read. An agent given
+only `{"passed": false}` will often keep going.
+
+Two things the design forbids, and both matter more than they look: the agent
+**cannot repair** the model, because every tool is read-only; and it **cannot
+mistake a failure for a crash**, because a physics failure comes back as a
+result rather than a transport error. The next three sections are those two
+properties in detail, and the third is the case that will bite you first.
+
+## Troubleshooting
+
+**`physics-lint-mcp: command not found`** — the console script did not install.
+Check `pip show physics-lint-mcp`; if it is there, the environment's `bin`
+directory is not on `PATH`, which is common when a client launches the server
+with a different shell. Use the absolute path in `mcp.json`:
+`{"command": "/full/path/to/venv/bin/physics-lint-mcp"}`.
+
+**The client shows the server as failed to start** — run the stdio smoke test
+from the quickstart by hand first. It is the same code path with none of the
+client's supervision, so the traceback is visible.
+
+**`No module named 'sparam_lint'`** — the two checkers are separate packages and
+are not pulled in automatically. Install all three, as the quickstart shows.
+
+**A tool call returns `isError: true` and the agent stops** — that is a physics
+verdict, not a fault. The result carries the failed laws and an interpretation;
+your agent should read them rather than treat the call as failed.
+
+**Nothing at all comes back** — the server speaks JSON-RPC over stdio, one
+object per line. A client that batches several objects into one line, or that
+writes without a trailing newline, will hang. The `initialize` request must
+come first.
+
+**The tool list is shorter than the table above** — you are running an older
+build. `tools/list` is generated from the same definitions the table is tested
+against, so they cannot disagree within one version.
 
 ## What the agent sees
 

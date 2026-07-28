@@ -288,3 +288,31 @@ def test_pypi_install_lines_are_labelled_as_not_yet_available():
             "README shows `pip install physics-lint-mcp` without saying the name "
             "is not published yet"
         )
+
+
+def test_readme_tool_table_matches_the_advertised_schemas():
+    """The table promises arguments; tools/list is what a client actually gets."""
+    reqs = "\n".join(json.dumps(r) for r in [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+    ])
+    out = io.StringIO()
+    main(stdin=io.StringIO(reqs), stdout=out)
+    advertised = json.loads(out.getvalue().strip().splitlines()[1])["result"]["tools"]
+
+    readme = (HERE / "README.md").read_text(encoding="utf-8")
+    table = readme.split("| Tool | Arguments |", 1)[1].split("\n\n", 1)[0]
+
+    for tool in advertised:
+        row = next((ln for ln in table.splitlines()
+                    if ln.startswith(f"| `{tool['name']}`")), None)
+        assert row, f"{tool['name']} is served but the README table omits it"
+        required = tool.get("inputSchema", {}).get("required", []) or []
+        for arg in required:
+            assert f"`{arg}`" in row, (
+                f"{tool['name']} requires {arg!r}; the README row does not mention it"
+            )
+        if not required:
+            assert "none" in row.lower(), (
+                f"{tool['name']} takes no arguments; the README row should say so"
+            )
