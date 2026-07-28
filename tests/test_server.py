@@ -1,0 +1,201 @@
+"""Tests for the physics-lint MCP server.
+
+Exercised at the JSON-RPC layer -- the same way a client speaks to it -- rather
+than by calling the Python functions directly, because the protocol surface is
+what an agent actually touches.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+HERE = Path(__file__).resolve().parents[1]
+OSS = HERE.parent
+for p in ("sparam-lint", "maxwell-lint"):
+    sys.path.insert(0, str(OSS / p / "src"))
+sys.path.insert(0, str(HERE / "src"))
+
+from physics_lint_mcp.server import PROTOCOL_VERSION, TOOLS, handle, main  # noqa: E402
+
+CORPUS = OSS / "sparam-conformance" / "data"
+
+
+def call(name, **args):
+    r = handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": name, "arguments": args}})
+    assert "result" in r, r
+    return json.loads(r["result"]["content"][0]["text"]), r["result"]
+
+
+# ------------------------------------------------------------------ protocol
+
+def test_initialize_reports_protocol_and_capabilities():
+    r = handle({"jsonrpc": "2.0", "id": 0, "method": "initialize", "params": {}})
+    res = r["result"]
+    assert res["protocolVersion"] == PROTOCOL_VERSION
+    assert "tools" in res["capabilities"]
+    assert res["serverInfo"]["name"] == "physics-lint-mcp"
+
+
+def test_initialized_notification_gets_no_response():
+    assert handle({"jsonrpc": "2.0", "method": "notifications/initialized"}) is None
+
+
+def test_tools_list_matches_registry():
+    r = handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    listed = {t["name"] for t in r["result"]["tools"]}
+    assert listed == set(TOOLS)
+    for t in r["result"]["tools"]:
+        assert t["description"].strip()
+        assert t["inputSchema"]["type"] == "object"
+
+
+def test_every_tool_declares_its_required_args():
+    for name, t in TOOLS.items():
+        schema = t["schema"]
+        if schema.get("properties"):
+            assert "required" in schema or name == "self_test", \
+                f"{name} has properties but no required list"
+
+
+def test_unknown_method_and_tool_are_errors():
+    assert handle({"jsonrpc": "2.0", "id": 1, "method": "nope"})["error"]["code"] == -32601
+    r = handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": "no_such_tool", "arguments": {}}})
+    assert r["error"]["code"] == -32602
+
+
+def test_ping():
+    assert handle({"jsonrpc": "2.0", "id": 1, "method": "ping"}) == {
+        "jsonrpc": "2.0", "id": 1, "result": {}}
+
+
+# --------------------------------------------------------------------- tools
+
+def test_check_touchstone_passes_a_real_passive_network():
+    out, _ = call("check_touchstone", path=str(CORPUS / "passive_line.s2p"))
+    assert out["physically_admissible"] is True
+    assert out["failed_laws"] == []
+    assert "does NOT mean it is accurate" in out["interpretation"]
+
+
+def test_check_touchstone_flags_an_impossible_network():
+    out, _ = call("check_touchstone", path=str(CORPUS / "active_gain.s2p"))
+    assert out["physically_admissible"] is False
+    assert "passivity" in out["failed_laws"]
+    assert "not physically realizable" in out["interpretation"]
+
+
+def test_interpretation_warns_the_agent_not_to_reason_from_bad_data():
+    """The interpretation field is the whole point: an agent reads prose."""
+    out, _ = call("check_touchstone", path=str(CORPUS / "active_gain.s2p"))
+    assert "Do not use it as a reference" in out["interpretation"]
+
+
+def test_isolator_exception_is_explained_not_hidden():
+    out, _ = call("check_touchstone", path=str(CORPUS / "ferrite_isolator.s2p"))
+    assert out["failed_laws"] == ["reciprocity"]
+    assert "isolator" in out["interpretation"].lower()
+
+
+def test_check_touchstone_on_missing_file_is_a_result_not_a_transport_error():
+    out, res = call("check_touchstone", path="/no/such/file.s2p")
+    assert res.get("isError") is True
+    assert "error" in out
+
+
+def test_self_test_reports_discrimination():
+    out, _ = call("self_test")
+    assert out["battery_discriminates"] is True
+    assert "evidence rather than assertion" in out["interpretation"]
+
+
+def test_check_screening_accepts_a_screened_matrix():
+    out, _ = call("check_screening",
+                  c_full=[[0.0, 0.6], [0.6, 0.0]],
+                  c_iso=[[0.0, 1.0], [1.0, 0.0]])
+    assert out["passed"] is True
+    assert out["max_k"] == pytest.approx(0.6)
+
+
+def test_check_screening_rejects_anti_screening():
+    out, _ = call("check_screening",
+                  c_full=[[0.0, 1.5], [1.5, 0.0]],
+                  c_iso=[[0.0, 1.0], [1.0, 0.0]])
+    assert out["passed"] is False
+    assert "anti-screening" in out["interpretation"]
+
+
+def test_check_screening_shape_mismatch_is_a_result():
+    out, res = call("check_screening", c_full=[[0.0, 1.0], [1.0, 0.0]],
+                    c_iso=[[0.0]])
+    assert res.get("isError") is True
+
+
+def test_pairwise_error_matches_the_closed_form():
+    out, _ = call("pairwise_error", screening_factor=0.5)
+    assert out["pairwise_relative_error"] == pytest.approx(1.0)  # 1/0.5 - 1
+    assert out["screening_depth_delta"] == pytest.approx(0.30103, abs=1e-5)
+
+
+def test_pairwise_error_is_zero_with_no_screening():
+    out, _ = call("pairwise_error", screening_factor=1.0)
+    assert out["pairwise_relative_error"] == pytest.approx(0.0)
+
+
+def test_pairwise_error_rejects_impossible_k():
+    for k in (0.0, -0.1, 1.5):
+        _, res = call("pairwise_error", screening_factor=k)
+        assert res.get("isError") is True, f"k={k} must be rejected"
+
+
+def test_bad_arguments_are_a_protocol_error():
+    r = handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
+                "params": {"name": "check_touchstone", "arguments": {"wrong": 1}}})
+    assert r["error"]["code"] == -32602
+
+
+# ------------------------------------------------------- read-only guarantee
+
+def test_no_tool_writes_or_repairs():
+    """Every tool must be side-effect free -- an agent that could silently
+    'fix' a failing network would defeat the purpose of the oracle."""
+    src = (HERE / "src" / "physics_lint_mcp" / "server.py").read_text()
+    for forbidden in ("open(", "write_text", ".write(", "os.remove", "shutil"):
+        # sys.stdout.write in the transport loop is the sole exception
+        occurrences = [ln for ln in src.splitlines()
+                       if forbidden in ln and "stdout.write" not in ln]
+        assert not occurrences, f"server performs I/O: {occurrences}"
+
+
+# ------------------------------------------------------------------- stdio
+
+def test_stdio_roundtrip():
+    reqs = "\n".join(json.dumps(r) for r in [
+        {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+        {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+    ])
+    out = io.StringIO()
+    main(stdin=io.StringIO(reqs), stdout=out)
+    lines = [json.loads(ln) for ln in out.getvalue().strip().splitlines()]
+    assert len(lines) == 2, "the notification must not produce a response"
+    assert lines[0]["result"]["serverInfo"]["name"] == "physics-lint-mcp"
+    assert len(lines[1]["result"]["tools"]) == len(TOOLS)
+
+
+def test_malformed_json_gets_parse_error():
+    out = io.StringIO()
+    main(stdin=io.StringIO("{not json\n"), stdout=out)
+    assert json.loads(out.getvalue())["error"]["code"] == -32700
+
+
+def test_mcp_json_manifest_is_valid():
+    spec = json.loads((HERE / "mcp.json").read_text())
+    assert "physics-lint" in spec["mcpServers"]
+    assert spec["mcpServers"]["physics-lint"]["command"] == "physics-lint-mcp"

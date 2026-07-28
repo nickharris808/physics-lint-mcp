@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "physics-lint": {
+      "command": "physics-lint-mcp",
+      "args": [],
+      "description": "Physics oracle: verifies S-parameter models and coupling matrices are physically possible."
+    }
+  }
+}
