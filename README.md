@@ -2,6 +2,8 @@
 
 ![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-28%20passing-brightgreen)
 
+📖 **[Documentation site](https://nickharris808.github.io/physics-lint/)** — the portfolio narrative, the concepts, a full walkthrough, and what all of this proves (and does not).
+
 **A physics oracle your AI agent cannot talk its way past.**
 
 An LLM has no way to distinguish a physically impossible S-parameter matrix from
