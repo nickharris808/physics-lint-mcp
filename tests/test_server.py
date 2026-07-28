@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -221,3 +222,32 @@ def test_mcp_json_manifest_is_valid():
     spec = json.loads((HERE / "mcp.json").read_text())
     assert "physics-lint" in spec["mcpServers"]
     assert spec["mcpServers"]["physics-lint"]["command"] == "physics-lint-mcp"
+
+
+# ------------------------------------------------- the README must stay runnable
+
+def test_readme_install_block_references_no_missing_sibling_paths():
+    """The quickstart once said `pip install ./sparam-lint ...`.
+
+    Cloning only this repository leaves no such directory, so the very first
+    command a new user ran failed with "File './sparam-lint' does not exist".
+    Local paths in the install block must resolve inside a fresh clone.
+    """
+    readme = (HERE / "README.md").read_text()
+    block = readme.split("## 30-second quickstart", 1)[1].split("```", 3)[1]
+    for token in block.split():
+        if token.startswith("./") or token.startswith("../"):
+            assert (HERE / token).exists(), (
+                f"README tells the user to install {token}, which does not "
+                "exist in a fresh clone of this repository"
+            )
+
+
+def test_readme_smoke_test_lists_exactly_the_shipped_tools():
+    """The documented `tools/list` output must match the server, in order."""
+    readme = (HERE / "README.md").read_text()
+    documented = re.findall(r'"name": "(\w+)"', readme)
+    assert documented, "the README no longer shows the tools/list smoke output"
+    assert documented == list(TOOLS), (
+        f"README lists {documented}; server serves {list(TOOLS)}"
+    )

@@ -1,6 +1,6 @@
 # physics-lint-mcp
 
-![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-23%20passing-brightgreen)
+![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-25%20passing-brightgreen)
 
 **A physics oracle your AI agent cannot talk its way past.**
 
@@ -15,13 +15,32 @@ its own judgement.
 ## 30-second quickstart
 
 ```bash
-# from source (works today)
 git clone https://github.com/nickharris808/physics-lint-mcp.git
-pip install ./sparam-lint ./maxwell-lint ./physics-lint-mcp
+cd physics-lint-mcp
+
+pip install git+https://github.com/nickharris808/sparam-lint.git@main \
+            git+https://github.com/nickharris808/maxwell-lint.git@main \
+            .
+```
+
+The two checkers are separate packages and are pulled from their own
+repositories; the server is the `.` at the end. Confirm the server answers over
+stdio before wiring it into a client:
+
+```bash
+$ printf '%s\n%s\n' \
+  '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}' \
+  '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+  | physics-lint-mcp | tail -1 | python3 -m json.tool | grep '"name"'
+                "name": "check_touchstone",
+                "name": "self_test",
+                "name": "check_screening",
+                "name": "pairwise_error",
 ```
 
 > **Not yet on PyPI.** `pip install physics-lint-mcp` is the intended install
-> once published.
+> once published; until then the three-package command above is the one that
+> works.
 
 ## Configure
 
