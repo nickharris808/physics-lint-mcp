@@ -188,7 +188,7 @@ def test_bad_arguments_are_a_protocol_error():
 def test_no_tool_writes_or_repairs():
     """Every tool must be side-effect free -- an agent that could silently
     'fix' a failing network would defeat the purpose of the oracle."""
-    src = (HERE / "src" / "physics_lint_mcp" / "server.py").read_text()
+    src = (HERE / "src" / "physics_lint_mcp" / "server.py").read_text(encoding="utf-8")
     for forbidden in ("open(", "write_text", ".write(", "os.remove", "shutil"):
         # sys.stdout.write in the transport loop is the sole exception
         occurrences = [ln for ln in src.splitlines()
@@ -219,7 +219,7 @@ def test_malformed_json_gets_parse_error():
 
 
 def test_mcp_json_manifest_is_valid():
-    spec = json.loads((HERE / "mcp.json").read_text())
+    spec = json.loads((HERE / "mcp.json").read_text(encoding="utf-8"))
     assert "physics-lint" in spec["mcpServers"]
     assert spec["mcpServers"]["physics-lint"]["command"] == "physics-lint-mcp"
 
@@ -233,7 +233,7 @@ def test_readme_install_block_references_no_missing_sibling_paths():
     command a new user ran failed with "File './sparam-lint' does not exist".
     Local paths in the install block must resolve inside a fresh clone.
     """
-    readme = (HERE / "README.md").read_text()
+    readme = (HERE / "README.md").read_text(encoding="utf-8")
     block = readme.split("## 30-second quickstart", 1)[1].split("```", 3)[1]
     for token in block.split():
         if token.startswith("./") or token.startswith("../"):
@@ -245,7 +245,7 @@ def test_readme_install_block_references_no_missing_sibling_paths():
 
 def test_readme_smoke_test_lists_exactly_the_shipped_tools():
     """The documented `tools/list` output must match the server, in order."""
-    readme = (HERE / "README.md").read_text()
+    readme = (HERE / "README.md").read_text(encoding="utf-8")
     documented = re.findall(r'"name": "(\w+)"', readme)
     assert documented, "the README no longer shows the tools/list smoke output"
     assert documented == list(TOOLS), (
