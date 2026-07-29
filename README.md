@@ -1,6 +1,6 @@
 # physics-lint-mcp
 
-![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-28%20passing-brightgreen)
+![CI](https://github.com/nickharris808/physics-lint-mcp/actions/workflows/ci.yml/badge.svg) ![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple) ![Licence](https://img.shields.io/badge/licence-Apache--2.0-green) ![Tests](https://img.shields.io/badge/tests-34%20passing-brightgreen)
 
 📖 **[Documentation site](https://nickharris808.github.io/physics-lint/)** — the portfolio narrative, the concepts, a full walkthrough, and what all of this proves (and does not).
 
@@ -213,3 +213,11 @@ Apache-2.0. See [LICENSE](LICENSE); copyright in [NOTICE](NOTICE).
 
 The signoff certificate and passive-by-construction synthesis these tools were
 written alongside are the [ChipletOS](https://chipletos.com) closed core.
+
+## Contributing
+
+One non-negotiable rule here: every tool stays read-only — an agent that could silently patch a failing model would defeat the point of having an oracle. [`CONTRIBUTING.md`](CONTRIBUTING.md) has the detail. Each sibling repository states its own, and they differ — that is deliberate, and it is why each is trustworthy on its own terms.
+
+## Citation
+
+[`CITATION.cff`](CITATION.cff) is machine-readable; GitHub renders a “Cite this repository” button from it.
